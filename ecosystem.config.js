@@ -27,7 +27,7 @@ module.exports = {
       host : 'admin.battery.msk.ru',
       ref  : 'origin/master',
       repo : 'https://github.com/finkvi/batas-admin.git',
-      path : '/home/batas',
+      path : '/home/batas/batas-admin',
       
       'post-deploy' : 'npm install && pm2 reload ecosystem.config.js --env production'
     }
