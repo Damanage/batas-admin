@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Admin Panel for Battery AutoShop</title>
+        
+        <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.16/css/jquery.dataTables.min.css"/>
+ 
+        <script type="text/javascript" src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+        <script type="text/javascript" src="https://cdn.datatables.net/1.10.16/js/jquery.dataTables.min.js"></script>
+        <script type="text/javascript" src="https://api-maps.yandex.ru/2.1/?lang=ru-RU"></script>
+        <style>
+            html, body, #map {
+                width: 100%; height: 100%; padding: 0; margin: 0;
+            }
+            a {
+                color: #04b; /* Цвет ссылки */
+                text-decoration: none; /* Убираем подчеркивание у ссылок */
+            }
+            a:visited {
+                color: #04b; /* Цвет посещённой ссылки */
+            }
+            a:hover {
+                color: #f50000; /* Цвет ссылки при наведении на нее курсора мыши */
+            }
+        </style>
+        
+        <script type="text/javascript">
+            $(document).ready(function() {
+                var table = $('#alldata').DataTable({
+                    "processing": true,
+                    "ajax": ({
+                        method: "GET",
+                        url: "/api/all",
+                        error: function (xhr,status,error) {
+                            console.log(error);
+                        }
+                    }),
+                    "columns": [
+                        { "data": "pub._id" },
+                        { "data": "pub.properties.product" },
+                        { "data": "pub.properties.price" },
+                        { "data": "pub.properties.currency" },
+                        { "data": "pub.properties.fromdate" },
+                        { "data": "pub.properties.status" },
+                        { "data": "pub.properties.comments" },
+                        { "data": "pub.geometry.coordinates.1"},
+                        { "data": "pub.geometry.coordinates.0"},
+                        { "data": "prv.desc" },
+                        { "data": "prv.links" },
+                        { "data": "prv.notes" },
+                        { "data": null, "defaultContent": "<button>Edit!</button>"},
+                        { "data": "pub._rev"},
+                        { "data": "prv._rev"}
+                    ]
+                });
+                
+                function refreshTable () {
+                    setTimeout(function () {
+                        table.ajax.reload(null, false);  
+                    }, 3000)
+                }
+                
+                //Predefualt for date
+                Date.prototype.toDateInputValue = (function() {
+                    var local = new Date(this);
+                    local.setMinutes(this.getMinutes() - this.getTimezoneOffset());
+                    return local.toJSON().slice(0,10);
+                });
+                $('#fromdate').val(new Date().toDateInputValue());
+                
+                //Save Record
+                $('#saverecord').click( function() {
+                    var data = new FormData();
+                    
+                    $.each($('#files')[0].files, function(i, file) {
+                        data.append('files', file);
+                    });
+                    
+                    var pubdata = {
+                            "type": "Battery",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [
+                                  parseFloat($('#lon').val()),
+                                  parseFloat($('#lat').val())
+                                ]
+                            },
+                            "properties": {
+                                "product": $('#product').val(),
+                                "price": $('#price').val(),
+                                "currency": $('#currency').val(),
+                                "fromdate": $('#fromdate').val(),
+                                "status": $('#status').val(),
+                                "comments": $('#comments').val()
+                            }
+                        };
+                    
+                    var prvdata = {
+                        "type": "Private",
+                        "desc": $('#desc').val(),
+                        "notes": $('#notes').val()
+                    };
+                    
+                    var id_edit = $('#id').val();
+                    
+                    if (id_edit) {
+                        pubdata._id = id_edit;
+                        pubdata._rev = $('#pub_rev').val();
+                        prvdata._rev = $('#prv_rev').val();
+                    }
+                    
+                    data.append(
+                        "data", JSON.stringify({"pub" : pubdata, "prv": prvdata})
+                    );
+                    
+                    $.ajax({
+                        method: "POST",
+                        url: "/api/upload",
+                        data: data,
+                        cache: false,
+                        contentType: false,
+                        processData: false,
+                        type: 'POST', // For jQuery < 1.9
+                        success: refreshTable()
+                    });
+                    
+                    return false;
+                } );
+                
+                //Edit Record
+                $('#alldata tbody').on('click', 'button', function () {
+                    var data = table.row( $(this).parents('tr') ).data();
+                    $('#id').val(data.pub.id);
+                    $('#pub_rev').val(data.pub.rev);
+                    $('#prv_rev').val(data.prv.rev);
+                } );
+                
+                //show map
+                ymaps.ready(init);
+                
+                function init () {
+                    var myMap = new ymaps.Map('map', {
+                            center: [-8.354994, 115.115268],
+                            zoom: 12
+                        }, {
+                            searchControlProvider: 'yandex#search'
+                        }),
+                        objectManager = new ymaps.ObjectManager({
+                            // Чтобы метки начали кластеризоваться, выставляем опцию.
+                            clusterize: true,
+                            // ObjectManager принимает те же опции, что и кластеризатор.
+                            gridSize: 32,
+                            clusterDisableClickZoom: true
+                        });
+                
+                    // Чтобы задать опции одиночным объектам и кластерам,
+                    // обратимся к дочерним коллекциям ObjectManager.
+                    objectManager.objects.options.set('preset', 'islands#greenDotIcon');
+                    objectManager.clusters.options.set('preset', 'islands#greenClusterIcons');
+                    myMap.geoObjects.add(objectManager);
+                    
+                    
+                    $.ajax({
+                        method: "GET",
+                        url: "/api/pub"
+                    }).done(function(data) {
+                        var r = {
+                            "type": "FeatureCollection",
+                            "features": []
+                        };
+                        
+                        for (var d in data.rows) {
+                            r.features.push ({
+                                "type": "Battery", 
+                                "id": data.rows[d].id, 
+                                "geometry": 
+                                    {"type": "Point", "coordinates": [data.rows[d].value.geometry.coordinates[1], data.rows[d].value.geometry.coordinates[0]]}, 
+                                "properties": {
+                                    "balloonContentHeader": "<font size=3><b>" + data.rows[d].value.properties.product +"</b></font> for " + data.rows[d].value.properties.price + " " + data.rows[d].value.properties.currency, 
+                                    "balloonContentBody": 
+                                    "<p>Status: " + data.rows[d].value.properties.status + "</p><p>" + data.rows[d].value.properties.comments + "</p>", 
+                                    "balloonContentFooter": "<font size=1>Information provided: </font> <strong>Battery AutoShop</strong>", 
+                                    "clusterCaption": "<strong><s>Еще</s> одна</strong> метка", 
+                                    "hintContent": "<strong>Текст  <s>подсказки</s></strong>"
+                                }
+                            });                            
+                        }
+                        objectManager.add(r);
+                    });
+                }
+                
+            });
+        </script>
+    </head>
+    <body>
+        <div id="inputdatawrapper" width = "100%">
+            <div><h1>Insert new battery location</h1></div>
+            <table id="inputdata" class="display" cellspacing="0" width="90%">
+                <thead>
+                    <tr>
+                        <th>Id</th>
+                        <th>Product</th>
+                        <th>Price</th>
+                        <th>Currency</th>
+                        <th>From date</th>
+                        <th>Status</th>
+                        <th>Public comments</th>
+                        <th>Lat</th>
+                        <th>Lon</th>
+                        <th>Description</th>
+                        <th>Notes</th>
+                        <th>pub_rev</th>
+                        <th>prv_rev</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><input type="text" id="id" name="id" readonly></td>
+                        <td>
+                            <select size="1" id="product" name="product">
+                                <option value="A27" selected="selected">
+                                    A27
+                                </option>
+                                <option value="AAA">
+                                    AAA
+                                </option>
+                                <option value="CR2032">
+                                    CR2032
+                                </option>
+                            </select>
+                        </td>
+                        <td><input type="number" id="price" name="price" value="500"></td>
+                        <td>                            
+                            <select size="1" id="currency" name="currency">
+                                <option value="RUB" selected="selected">
+                                    RUB
+                                </option>
+                                <option value="USD">
+                                    USD
+                                </option>
+                                <option value="BTC">
+                                    BTC
+                                </option>
+                            </select>
+                        </td>
+                        <td><input type="date" id="fromdate" name="fromdate"></td>
+                        <td>
+                            <select size="1" id="status" name="status">
+                                <option value="Ready" selected="selected">
+                                    Ready
+                                </option>
+                                <option value="Inactive">
+                                    Inactive
+                                </option>
+                                <option value="Planing">
+                                    Planing
+                                </option>
+                            </select>
+                        </td>
+                        <td><input type="text" id="comments" name="comments"></td>
+                        <td><input type="number" id="lat" name="lat"></td>
+                        <td><input type="number" id="lon" name="lon"></td>
+                        <td><input type="text" id="desc" name="desc"></td>
+                        <td><input type="text" id="notes" name="notes"></td>
+                        <td><input type="text" id="pub_rev" name="pub_rev" readonly></td>
+                        <td><input type="text" id="prv_rev" name="prv_rev" readonly></td>
+                    </tr>
+                    <tr>
+                        <td>Add photos<input id="files" name="files" type="file" accept="image/jpeg, image/png" multiple></td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div>
+                <p>Press Save Record to add it to table</p>
+                <input type="button" id="saverecord" name="saverecord" value="Save record">
+            </div>
+        </div>
+        
+        <div id="alldatawrapper">
+            <div><h1>All data</h1></div>
+            <table id="alldata" class="display" cellspacing="0" width="100%">
+            <thead>
+                <tr>
+                    <th>Id</th>
+                    <th>Product</th>
+                    <th>Price</th>
+                    <th>Currency</th>
+                    <th>From date</th>
+                    <th>Status</th>
+                    <th>Public comments</th>
+                    <th>Lat</th>
+                    <th>Lon</th>
+                    <th>Description</th>
+                    <th>Photos</th>
+                    <th>Notes</th>
+                    <th>Edit</th>
+                    <th>pub_rev</th>
+                    <th>prv_rev</th>
+                </tr>
+            </thead>
+            </table>
+        </div>
+        <div id="map"></div>
+    </body>
+</html>
