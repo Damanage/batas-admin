@@ -9,7 +9,8 @@ module.exports = {
       name      : 'admin',
       script    : 'admin.js',
       env: {
-        PORT: 4001
+        PORT: 4001,
+        CONF: './config.json'
       },
       env_production : {
         NODE_ENV: 'production'

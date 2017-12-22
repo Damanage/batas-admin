@@ -5,7 +5,7 @@ require("console-stamp")(console, {
     metadata:'[' + process.pid + ']',
 });
 
-const conf = require('../config.json');
+const conf = require(process.env.CONF || '../config.json');
 
 var express = require('express');
 
