@@ -42,7 +42,7 @@
                         { "data": "pub.properties.price" },
                         { "data": "pub.properties.currency" },
                         { "data": "pub.properties.fromdate" },
-                        { "data": "pub.properties.status" },
+                        { "data": "pub.status" },
                         { "data": "pub.properties.comments" },
                         { "data": "pub.geometry.coordinates.1"},
                         { "data": "pub.geometry.coordinates.0"},
@@ -91,15 +91,16 @@
                                 "price": $('#price').val(),
                                 "currency": $('#currency').val(),
                                 "fromdate": $('#fromdate').val(),
-                                "status": $('#status').val(),
                                 "comments": $('#comments').val()
-                            }
+                            },
+                            "status": $('#status').val()
                         };
                     
                     var prvdata = {
                         "type": "Private",
                         "desc": $('#desc').val(),
-                        "notes": $('#notes').val()
+                        "notes": $('#notes').val(),
+                        "status": $('#status').val()
                     };
                     
                     var id_edit = $('#id').val();
@@ -131,9 +132,20 @@
                 //Edit Record
                 $('#alldata tbody').on('click', 'button', function () {
                     var data = table.row( $(this).parents('tr') ).data();
-                    $('#id').val(data.pub.id);
-                    $('#pub_rev').val(data.pub.rev);
-                    $('#prv_rev').val(data.prv.rev);
+                    $('#id').val(data.pub._id);
+                    $('#pub_rev').val(data.pub._rev);
+                    $('#prv_rev').val(data.prv._rev);
+                    
+                    $('#product').val(data.pub.properties.product);
+                    $('#price').val(data.pub.properties.price);
+                    $('#currency').val(data.pub.properties.currency);
+                    $('#fromdate').val(data.pub.properties.fromdate);
+                    $('#comments').val(data.pub.properties.comments);
+                    $('#status').val(data.pub.status);
+                    $('#lat').val(data.pub.geometry.coordinates[1]);
+                    $('#lon').val(data.pub.geometry.coordinates[0]);
+                    $('#desc').val(data.prv.desc);
+                    $('#notes').val(data.prv.notes);
                 } );
                 
                 //show map
@@ -179,7 +191,7 @@
                                 "properties": {
                                     "balloonContentHeader": "<font size=3><b>" + data.rows[d].value.properties.product +"</b></font> for " + data.rows[d].value.properties.price + " " + data.rows[d].value.properties.currency, 
                                     "balloonContentBody": 
-                                    "<p>Status: " + data.rows[d].value.properties.status + "</p><p>" + data.rows[d].value.properties.comments + "</p>", 
+                                    "<p>Status: " + data.rows[d].value.status + "</p><p>" + data.rows[d].value.properties.comments + "</p>", 
                                     "balloonContentFooter": "<font size=1>Information provided: </font> <strong>Battery AutoShop</strong>", 
                                     "clusterCaption": "<strong><s>Еще</s> одна</strong> метка", 
                                     "hintContent": "<strong>Текст  <s>подсказки</s></strong>"
@@ -247,14 +259,17 @@
                         <td><input type="date" id="fromdate" name="fromdate"></td>
                         <td>
                             <select size="1" id="status" name="status">
-                                <option value="Ready" selected="selected">
-                                    Ready
+                                <option value="new">
+                                    new
                                 </option>
-                                <option value="Inactive">
-                                    Inactive
+                                <option value="ready" selected="selected">
+                                    ready
                                 </option>
-                                <option value="Planing">
-                                    Planing
+                                <option value="reserved">
+                                    reserved
+                                </option>
+                                <option value="sold">
+                                    sold
                                 </option>
                             </select>
                         </td>

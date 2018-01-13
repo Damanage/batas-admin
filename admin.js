@@ -225,6 +225,22 @@ app.post('/api/upload', upload.array('files'), function (req, res, next) {
   }
 });
 
+app.get('/api/status/:id/:status', function (req, res) {
+ db.saveBatterySatus(req.params.id, req.params.status)
+ .then(
+    function (d) {
+      res.send(d);
+    },
+    function (e) {
+      console.error(e);
+      res.status(403).send({
+        success: false,
+        message: e
+      });
+    }
+  );
+});
+
 app.listen(process.env.PORT || 3000, process.env.IP || "0.0.0.0", function () {
-  console.info("Example app listening on " + (process.env.IP || "0.0.0.0") + ":" + (process.env.PORT || 3000));
+  console.info("Admin app started on " + (process.env.IP || "0.0.0.0") + ":" + (process.env.PORT || 3000));
 });

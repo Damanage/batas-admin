@@ -6,6 +6,97 @@ var prvwr;
 
 var dbopts;
 
+function createPaymentFact (prodid, paymentid) {
+  //If we have payment
+  
+  return new Promise (function (resolve, reject) {
+    var data = {
+      "type": "PaymentFact",
+      "productid": prodid
+    };
+    
+    checkPaymentFact(prodid)
+    .then (
+      function (body) {
+        resolve (body);
+      },
+      function (err) {
+        //Вставляем запись, так как её нет
+        prvwr.insert(data, paymentid, function (err, body) {
+          if (!err) {
+            resolve (body);
+          } 
+          else
+          {
+            console.error(err);
+            reject ("Cann't save payment data: " + err);
+          }
+       });
+    });
+  });
+}
+
+function checkPaymentFact (prodid) {
+  return new Promise (function (resolve, reject) {
+    prv.view('show', 'payment', { "key": prodid }, function(err, body, cb) {
+      if (!err) {
+        if (body.rows && body.rows.length > 0) 
+        {
+          resolve(body);
+        }
+        else 
+        {
+          reject("There is no payment fact");
+        }
+      }
+      else {
+        reject("Cann't get payment fact: " + err);
+      }
+
+    });
+  });
+}
+
+function getPrvFileUrl (id, file) {
+  return new Promise (function(resolve, reject){
+    checkPaymentFact(id)
+    .then(
+      function(fact) {
+        resolve ('https://' + dbopts.batas_private.rkey +'@' + dbopts.url + '/batas_private/' + id + '/'+ file);
+      },
+      function(err) {
+        reject ("Problem with payment fact: " + err);
+      }
+    );
+  });
+}
+
+function getPubProductById (id) {
+  return new Promise (function (resolve, reject) {
+    pub.get(id, {revs_info: false}, function(err, body, cb) {
+      if (!err) {
+        resolve(body);
+      }
+      else {
+        reject ("Cann't get product by id: " + err);
+      }
+    });
+  });
+}
+
+function getPrvProductById (id) {
+  return new Promise (function (resolve, reject) {
+    prv.get(id, {revs_info: false}, function(err, body, cb) {
+      if (!err) {
+        resolve(body);
+      }
+      else {
+        reject ("Cann't get product by id: " + err);
+      }
+    });
+  });
+}
+
 function getPubData () {
   return new Promise (function (resolve, reject) {
     pub.view('show', 'battery', function(err, body, cb) {
@@ -225,6 +316,87 @@ function saveBatteryRecord (pubdata, prvdata, files) {
   });
 }
 
+function savePaymentReq (payment) {
+  return new Promise (function (resolve, reject){
+    var data = {
+      "type": "PaymentReq",
+      "payment": payment
+    };
+    prvwr.insert(data, payment.id, function (err, body) {
+      if (!err) {
+        var result = {
+          "status" : body,
+          "data" : data
+        };
+        resolve (result);
+      } else {
+        if (err.statusCode == '409')
+        {
+          //We have 'Document update conflict.
+          //May be user two times tryes or may be this is another user tryes to buy the same product
+          //Never mind resole
+          resolve ({
+            "status": {
+              "satus": "ok",
+              "_id": payment.id
+            },
+            "data" : data
+          });
+        }
+        else 
+        {
+          console.error(err);
+          reject ("Cann't save payment data: " + err);
+        }
+      }
+    });
+  });
+}
+
+function saveBatterySatus(id, status) {
+  
+  function saveStatus (db, id, status) {
+    return new Promise (function(resolve, reject) {
+      db.get(id, {revs_info: true}, function(err, body, cb) {
+        if (!err) {
+          body.status = status;
+          
+          db.insert(body, body.id, function (err, result) {
+            if (!err) 
+            {
+              resolve (result);
+            } 
+            else 
+            {
+                console.error(err);
+                reject ("Cann't save status data: " + err);
+            }
+          });
+          
+          resolve(body);
+        }
+        else {
+          reject ("Cann't get product by id: " + err);
+        }
+      });
+    });
+  }
+  
+  return new Promise (function (resolve, reject){
+    saveStatus(pubwr, id, status)
+    .then (saveStatus(prvwr, id, status))
+    .then(
+      resolve({
+        "success": true,
+        "message": 'Satus saved'
+      })
+    )
+    .catch (function (e) {
+      reject(e);
+    });
+  });
+}
+
 function db (opts) {
     dbopts = opts;
     
@@ -240,9 +412,16 @@ function db (opts) {
     this.getPubData = getPubData;
     this.getPrvData = getPrvData;
     this.getAllData = getAllData;
+    this.getPubProductById = getPubProductById;
+    this.getPrvProductById = getPrvProductById;
+    this.getPrvFileUrl = getPrvFileUrl;
+    this.checkPaymentFact = checkPaymentFact;
     
     //Export save functions
     this.saveBatteryRecord = saveBatteryRecord;
+    this.savePaymentReq = savePaymentReq;
+    this.saveBatterySatus = saveBatterySatus;
+    this.createPaymentFact = createPaymentFact;
 }
 
 module.exports = function (opts) {
